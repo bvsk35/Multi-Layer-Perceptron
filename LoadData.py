@@ -1,6 +1,5 @@
 # This file Loads the Training Images and Labels
 # Loads Test Images and Labels
-# Generate/Initialize Weight Matrix using Xavier Initialisation
 
 # Import required functions
 import gzip
