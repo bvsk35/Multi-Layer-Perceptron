@@ -13,8 +13,11 @@ class NeuralNetwork(object):
     '''
     def __init__(self, X, d, split=0.8, act_func='Sigmoid', leak=0.2, loss='MSE', layer_info=np.array([2, 2]), 
                  lr_info=np.array([0.1, 0.5]), momentum=0.5, epsilon=4.7, maxIter=10000):
-        self.X = X
-        self.d = d
+        self.X = X.astype('float')
+        if d.ndim == 1:
+            self.d = d.reshape(-1, 1)
+        else:
+            self.d = d
         self.split = split
         self.prep_data()
         # bias has been appended to the data Nx(D+1) N: no of training samples D: dimension of the data
@@ -48,15 +51,23 @@ class NeuralNetwork(object):
     prep_data: prepares the data for training
     '''
     def prep_data(self):
-        scaler = preprocessing.StandardScaler().fit(self.X)
-        X_scaled = scaler.transform(self.X)
-        bias = np.ones((X_scaled.shape[0], 1))
-        X_scaled = np.hstack((bias, X_scaled))
-        numsplit = int(self.X.shape[0]*self.split)
-        self.X_val = X_scaled[numsplit:]
-        self.X_train = X_scaled[:numsplit]
-        self.label_val = self.d[numsplit:]
-        self.label_train = self.d[:numsplit]      
+        if self.split == None:
+            scaler = preprocessing.StandardScaler().fit(self.X)
+            X_scaled = scaler.transform(self.X)
+            bias = np.ones((X_scaled.shape[0], 1))
+            X_scaled = np.hstack((bias, X_scaled))
+            self.X_train = X_scaled
+            self.label_train = self.d
+        else:
+            scaler = preprocessing.StandardScaler().fit(self.X)
+            X_scaled = scaler.transform(self.X)
+            bias = np.ones((X_scaled.shape[0], 1))
+            X_scaled = np.hstack((bias, X_scaled))
+            numsplit = int(self.X.shape[0]*self.split)
+            self.X_val = X_scaled[numsplit:]
+            self.X_train = X_scaled[:numsplit]
+            self.label_val = self.d[numsplit:]
+            self.label_train = self.d[:numsplit]      
         
     '''
     activation_func: which activation function to use for the hidden layers
@@ -222,22 +233,39 @@ class NeuralNetwork(object):
                 v, z = self.feedforward(self.X_train[i], self.W)
                 gradient = self.back_prop(self.X_train[i], self.label_train[i], self.W, v, z)
                 self.update_weights(gradient)
-            loss_train, error_train = self.cal_loss(self.X_train, self.label_train)
-            loss_val, error_val = self.cal_loss(self.X_val, self.label_val)
-            result.append([epoch, loss_train, loss_val, error_train, error_val])
-            print('Epoch: %d eta: %0.3f Loss_Train %0.2f Loss_Val %0.2f Error_Train %0.2f%% Error_Val %0.2f%%' 
-                  % (epoch, self.eta, loss_train, loss_val, 100*(error_train/self.row), 100*(error_val/self.X_val.shape[0])))
-            if epoch != 0:
-                if 100*(error_val/self.X_val.shape[0]) <= self.epsilon:
-                    result = np.array(result)
-                    self.W_opt = deepcopy(self.W)
-                    print('Optimal Weights Reached!!!!!')
-                    return self.W_opt, result
+            if self.split == None:
+                loss_train, error_train = self.cal_loss(self.X_train, self.label_train)
+                result.append([epoch, loss_train, error_train])
+                print('Epoch: %d eta: %0.3f Loss_Train %0.2f Error_Train %0.2f%%' 
+                      % (epoch, self.eta, loss_train, 100*(error_train/self.row)))
+                if epoch != 0:
+                    if 100*(error_train/self.row) <= self.epsilon:
+                        result = np.array(result)
+                        self.W_opt = deepcopy(self.W)
+                        print('Optimal Weights Reached!!!!!')
+                        return self.W_opt, result
+                    else:
+                        self.learning_rate_decay(result[-1][1], result[-2][1])
+                        epoch += 1
                 else:
-                    self.learning_rate_decay(result[-1][1], result[-2][1])
                     epoch += 1
             else:
-                epoch += 1
+                loss_train, error_train = self.cal_loss(self.X_train, self.label_train)
+                loss_val, error_val = self.cal_loss(self.X_val, self.label_val)
+                result.append([epoch, loss_train, loss_val, error_train, error_val])
+                print('Epoch: %d eta: %0.3f Loss_Train %0.2f Loss_Val %0.2f Error_Train %0.2f%% Error_Val %0.2f%%' 
+                      % (epoch, self.eta, loss_train, loss_val, 100*(error_train/self.row), 100*(error_val/self.X_val.shape[0])))
+                if epoch != 0:
+                    if 100*(error_val/self.X_val.shape[0]) <= self.epsilon:
+                        result = np.array(result)
+                        self.W_opt = deepcopy(self.W)
+                        print('Optimal Weights Reached!!!!!')
+                        return self.W_opt, result
+                    else:
+                        self.learning_rate_decay(result[-1][1], result[-2][1])
+                        epoch += 1
+                else:
+                    epoch += 1
         result = np.array(result)
         self.W_opt = deepcopy(self.W)
         print('Optimal Weights Reached!!!!!')
@@ -263,6 +291,7 @@ class NeuralNetwork(object):
     def predict(self, X, W):
         row, col = X.shape
         scaler = preprocessing.StandardScaler().fit(self.X)
+        X = X.astype('float')
         X_scaled = scaler.transform(X)
         bias = np.ones((X_scaled.shape[0], 1))
         X_scaled = np.hstack((bias, X_scaled))
@@ -282,6 +311,7 @@ class NeuralNetwork(object):
     def predict_loss(self, X, d, W):
         row, col = X.shape
         scaler = preprocessing.StandardScaler().fit(self.X)
+        X = X.astype('float')
         X_scaled = scaler.transform(X)
         bias = np.ones((X_scaled.shape[0], 1))
         X_scaled = np.hstack((bias, X_scaled))
